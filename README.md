@@ -48,14 +48,14 @@ make install
 
 ```bash
 $ ./cache-command --help
-Usage: cache-command [--basedir=PATH] [--help] [--purge] [--timeout=SECONDS] [--verbose] -- COMMAND
+Usage: cache-command [--basedir=PATH] [--expiration=SECONDS] [--help] [--purge] [--remove] [--verbose] -- COMMAND
 ```
 
 Options|Description
 ---|---
-`--basedir=PATH`, `-b` | Base directory for the cache
+`--basedir=PATH`, `-b` | Base directory for the cache. (default: `${XDG_RUNTIME_DIR/cache-command`)
 `--expiration=SECONDS`, `-e` | Set the cache expiration duration for a particular command
 `--help`, `-h` | Print help text
 `--purge`, `-p` | Purge the cache for a particular command
-`--reset`, `-r` | Purge all caches
+`--remove`, `-r` | Remove the base directory
 `--verbose`, `-v` | Print verbose output to aid with debugging

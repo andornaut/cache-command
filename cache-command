@@ -3,22 +3,22 @@
 set -o errexit -o pipefail -o noclobber -o nounset
 
 usage() {
-    echo "Usage: $(basename "${0}") [--basedir=PATH] [--expiration=SECONDS] [--help] [--purge] [--verbose] -- COMMAND" >/dev/stderr
-    exit 1
+    echo "Usage: $(basename "${0}") [--basedir=PATH] [--expiration=SECONDS] [--help] [--purge] [--remove] [--verbose] -- COMMAND"
 }
 
 baseDir="${XDG_RUNTIME_DIR-${HOME}/.local/share}/cache-command"
 expirationInSeconds=
-purgeCommandCache=false
-resetCache=false
+purge=false
+remove=false
 verbose=false
 
 # Arg parsing from: https://stackoverflow.com/a/29754866
 OPTIONS=b:e:hprv
-LONG_OPTS=basedir:,expiration:,help,purge,reset,verbose
+LONG_OPTS=basedir:,expiration:,help,purge,remove,verbose
 ! PARSED=$(getopt --options=${OPTIONS} --longoptions=${LONG_OPTS} --name "$0" -- "$@")
 if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
-    usage
+    usage >/dev/stderr
+    exit 1
 fi
 
 eval set -- "${PARSED}"
@@ -32,16 +32,17 @@ while true; do
             expirationInSeconds="$2"
             shift 2
             ;;
-        -r|--reset)
-            resetCache=true
+        -p|--purge)
+            purge=true
             shift
             ;;
-        -p|--purge)
-            purgeCommandCache=true
+        -r|--remove)
+            remove=true
             shift
             ;;
         -h|--help)
             usage
+            exit
             ;;
         -v|--verbose)
             verbose=true
@@ -52,21 +53,22 @@ while true; do
             break
             ;;
         *)
-            echo wtf
-            usage
+            usage >/dev/stderr
+            exit 1
             ;;
     esac
 done
 
-# Execute reset before validating the COMMAND argument, b/c the latter is not required in order to reset.
-if [[ "${resetCache}" = true ]]; then
-    [[ "${verbose}" = false ]] || echo 'Resetting all caches'
+# Remove basedir before validating the COMMAND argument, because the latter is moot in this case.
+if [[ "${remove}" = true ]]; then
+    [[ "${verbose}" = false ]] || echo "Removing basedir: ${baseDir}"
     rm -rf $([[ "${verbose}" = false ]] || echo -n '--verbose') "${baseDir}"
     exit
 fi
 
 if [[ $# -eq 0 ]]; then
-    usage
+    usage >/dev/stderr
+    exit 1
 fi
 
 command="$@"
@@ -80,18 +82,18 @@ if [[ "${verbose}" = true ]]; then
     echo "Cache directory: ${commandDir}"
     echo "Command: ${command}"
     echo "Expiration in seconds: ${expirationInSeconds}"
-    echo "Purge: ${purgeCommandCache}"
-    echo "Reset: ${resetCache}"
+    echo "Purge: ${purge}"
+    echo "Remove: ${remove}"
     echo "Verbose: ${verbose}"
 fi
 
-purgeCache() {
+removeCommandDir() {
     [[ "${verbose}" = false ]] || echo 'Purging cache'
     rm -rf $([[ "${verbose}" = false ]] || echo -n '--verbose') "${commandDir}"
 }
 
-if [[ "${purgeCommandCache}" = true ]]; then
-    purgeCache
+if [[ "${purge}" = true ]]; then
+    removeCommandDir
     exit
 fi
 
@@ -112,7 +114,7 @@ if [[ -f "${exitCodePath}" ]]; then
     fi
 
     [[ "${verbose}" = false ]] || echo "Cache has expired (cache age in seconds: $(cacheAge))"
-    purgeCache
+    removeCommandDir
 fi
 
 mkdir -p "${commandDir}"
