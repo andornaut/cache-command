@@ -54,7 +54,7 @@ Usage: cache-command [--basedir=PATH] [--expiration=SECONDS] [--help] [--purge] 
 Option|Description
 ---|---
 `--basedir=PATH`, `-b` | Base directory for the cache (default: `${XDG_RUNTIME_DIR}/cache-command`)
-`--expiration=SECONDS`, `-e` | Set the cache expiration duration for a particular command
+`--expiration=SECONDS`, `-e` | Set the cache duration for a particular command
 `--help`, `-h` | Print help text
 `--purge`, `-p` | Purge the cache for a particular command
 `--remove`, `-r` | Remove the base directory
