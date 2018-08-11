@@ -2,8 +2,8 @@
 
 Run a command and cache its results.
 
-`./cache-command [OPTIONS] -- COMMAND` saves the stdout, stderr, and exit code of COMMAND in a cache and returns the
-same on subsequent invocations.
+`./cache-command [OPTIONS] -- COMMAND` saves the stdout, stderr, and exit code of COMMAND in a cache and
+returns the same on subsequent invocations.
 
 ```bash
 $ echo -e '#!/bin/bash\n echo stdout; sleep 5; echo stderr >&2; exit 1' > five-seconds
@@ -54,8 +54,8 @@ Usage: cache-command [--basedir=PATH] [--expiration=SECONDS] [--help] [--purge] 
 Option|Description
 ---|---
 `--basedir=PATH`, `-b` | Base directory for the cache (default: `${XDG_RUNTIME_DIR}/cache-command`)
-`--expiration=SECONDS`, `-e` | Set the cache duration for a particular command
+`--expiration=SECONDS`, `-e` | Cache expiration period
 `--help`, `-h` | Print help text
 `--purge`, `-p` | Purge the cache for a particular command
-`--remove`, `-r` | Remove the base directory
+`--remove`, `-r` | Remove the base directory (and any caches that it contains)
 `--verbose`, `-v` | Print verbose output to aid with debugging

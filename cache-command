@@ -60,9 +60,9 @@ while true; do
     esac
 done
 
-# Remove basedir before validating the COMMAND argument, because the latter is moot in this case.
+# Remove ${baseDir} before validating the COMMAND argument, because the latter is moot in this case
 if [[ "${remove}" = true ]]; then
-    [[ "${verbose}" = false ]] || echo "Removing basedir: ${baseDir}"
+    [[ "${verbose}" = false ]] || echo "Removing base directory: ${baseDir}"
     rm -rf $([[ "${verbose}" = false ]] || echo -n '--verbose') "${baseDir}"
     exit
 fi
@@ -75,7 +75,7 @@ fi
 command="$@"
 key="$(echo -n "${command}"|sha256sum)"
 
-# Strip everything after the first word, because sha256sum adds a space (in text-mode) and filename
+# Strip everything after the first word, because sha256sum adds: " -"
 key=${key%% *}
 cacheDir="${baseDir}/${key}"
 
