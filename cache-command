@@ -3,7 +3,8 @@
 set -o errexit -o pipefail -o noclobber -o nounset
 
 usage() {
-    echo "Usage: $(basename "${0}") [--basedir=PATH] [--expiration=SECONDS] [--help] [--purge] [--remove] [--verbose] -- COMMAND"
+    echo -n "Usage: $(basename "${0}") "
+    echo '[--basedir=PATH] [--expiration=SECONDS] [--help] [--purge] [--remove] [--verbose] -- COMMAND'
 }
 
 baseDir="${XDG_RUNTIME_DIR-${HOME}/.local/share}/cache-command"
@@ -32,6 +33,10 @@ while true; do
             expirationInSeconds="$2"
             shift 2
             ;;
+        -h|--help)
+            usage
+            exit
+            ;;
         -p|--purge)
             purge=true
             shift
@@ -39,10 +44,6 @@ while true; do
         -r|--remove)
             remove=true
             shift
-            ;;
-        -h|--help)
-            usage
-            exit
             ;;
         -v|--verbose)
             verbose=true
@@ -73,7 +74,8 @@ fi
 
 command="$@"
 key="$(echo -n "${command}"|sha256sum)"
-# Strip everything after the first word, because sha256sum adds a space (in text-mode) and filename ("-" in this case).
+
+# Strip everything after the first word, because sha256sum adds a space (in text-mode) and filename
 key=${key%% *}
 commandDir="${baseDir}/${key}"
 
@@ -119,7 +121,7 @@ fi
 
 mkdir -p "${commandDir}"
 
-# The next line must be allowed to exit with non-zero in order to capture its exit code
+# Executing the ${command} must be allowed to exit with a non-zero exit code
 set +o errexit
 ${command} 2> >(tee "${errPath}" 1>&2) > >(tee "${outPath}")
 exitCode=$?
