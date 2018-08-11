@@ -1,0 +1,125 @@
+#!/bin/bash
+
+set -o errexit -o pipefail -o noclobber -o nounset
+
+usage() {
+    echo "Usage: $(basename "${0}") [--basedir=PATH] [--expiration=SECONDS] [--help] [--purge] [--verbose] -- COMMAND" >/dev/stderr
+    exit 1
+}
+
+baseDir="${XDG_RUNTIME_DIR-${HOME}/.local/share}/cache-command"
+expirationInSeconds=
+purgeCommandCache=false
+resetCache=false
+verbose=false
+
+# Arg parsing from: https://stackoverflow.com/a/29754866
+OPTIONS=b:e:hprv
+LONG_OPTS=basedir:,expiration:,help,purge,reset,verbose
+! PARSED=$(getopt --options=${OPTIONS} --longoptions=${LONG_OPTS} --name "$0" -- "$@")
+if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
+    usage
+fi
+
+eval set -- "${PARSED}"
+while true; do
+    case "$1" in
+        -b|--basedir)
+            baseDir="$2"
+            shift 2
+            ;;
+        -e|--expiration)
+            expirationInSeconds="$2"
+            shift 2
+            ;;
+        -r|--reset)
+            resetCache=true
+            shift
+            ;;
+        -p|--purge)
+            purgeCommandCache=true
+            shift
+            ;;
+        -h|--help)
+            usage
+            ;;
+        -v|--verbose)
+            verbose=true
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        *)
+            echo wtf
+            usage
+            ;;
+    esac
+done
+
+# Execute reset before validating the COMMAND argument, b/c the latter is not required in order to reset.
+if [[ "${resetCache}" = true ]]; then
+    [[ "${verbose}" = false ]] || echo 'Resetting all caches'
+    rm -rf $([[ "${verbose}" = false ]] || echo -n '--verbose') "${baseDir}"
+    exit
+fi
+
+if [[ $# -eq 0 ]]; then
+    usage
+fi
+
+command="$@"
+key="$(echo -n "${command}"|sha256sum)"
+# Strip everything after the first word, because sha256sum adds a space (in text-mode) and filename ("-" in this case).
+key=${key%% *}
+commandDir="${baseDir}/${key}"
+
+if [[ "${verbose}" = true ]]; then
+    echo "Base directory: ${baseDir}"
+    echo "Cache directory: ${commandDir}"
+    echo "Command: ${command}"
+    echo "Expiration in seconds: ${expirationInSeconds}"
+    echo "Purge: ${purgeCommandCache}"
+    echo "Reset: ${resetCache}"
+    echo "Verbose: ${verbose}"
+fi
+
+purgeCache() {
+    [[ "${verbose}" = false ]] || echo 'Purging cache'
+    rm -rf $([[ "${verbose}" = false ]] || echo -n '--verbose') "${commandDir}"
+}
+
+if [[ "${purgeCommandCache}" = true ]]; then
+    purgeCache
+    exit
+fi
+
+exitCodePath="${commandDir}/exit-code"
+errPath="${commandDir}/stderr"
+outPath="${commandDir}/stdout"
+
+cacheAge() {
+    echo -n $(($(date +%s)-$(stat -c %Y "${exitCodePath}")))
+}
+
+if [[ -f "${exitCodePath}" ]]; then
+    if [[ -z ${expirationInSeconds} || $(cacheAge) -lt ${expirationInSeconds} ]]; then
+        [[ "${verbose}" = false ]] || echo "Using cache (cache age in seconds: $(cacheAge))"
+        cat "${outPath}"
+        cat "${errPath}" 1>&2
+        exit $(cat "${exitCodePath}")
+    fi
+
+    [[ "${verbose}" = false ]] || echo "Cache has expired (cache age in seconds: $(cacheAge))"
+    purgeCache
+fi
+
+mkdir -p "${commandDir}"
+
+# The next line must be allowed to exit with non-zero in order to capture its exit code
+set +o errexit
+${command} 2> >(tee "${errPath}" 1>&2) > >(tee "${outPath}")
+exitCode=$?
+echo -n ${exitCode} > "${exitCodePath}"
+exit ${exitCode}
