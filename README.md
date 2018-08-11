@@ -36,6 +36,7 @@ Inspired by [this StackOverflow answer](https://unix.stackexchange.com/a/334568)
 
 - [bash](https://www.gnu.org/software/bash/) (tested with v4.4.19)
 - GNU Coreutils [tee](https://en.wikipedia.org/wiki/Tee_(command))
+- [sha256sum](https://linux.die.net/man/1/sha256sum)
 
 ## Installation
 
