@@ -7,7 +7,7 @@ usage() {
     echo '[--basedir=PATH] [--expiration=SECONDS] [--help] [--purge] [--remove] [--verbose] -- COMMAND'
 }
 
-baseDir="${XDG_RUNTIME_DIR-${HOME}/.local/share}/cache-command"
+baseDir="${XDG_RUNTIME_DIR-${HOME-/tmp}/.local/share}/cache-command"
 expirationInSeconds=
 purge=false
 remove=false
