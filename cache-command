@@ -77,11 +77,11 @@ key="$(echo -n "${command}"|sha256sum)"
 
 # Strip everything after the first word, because sha256sum adds a space (in text-mode) and filename
 key=${key%% *}
-commandDir="${baseDir}/${key}"
+cacheDir="${baseDir}/${key}"
 
 if [[ "${verbose}" = true ]]; then
     echo "Base directory: ${baseDir}"
-    echo "Cache directory: ${commandDir}"
+    echo "Cache directory: ${cacheDir}"
     echo "Command: ${command}"
     echo "Expiration in seconds: ${expirationInSeconds}"
     echo "Purge: ${purge}"
@@ -89,19 +89,19 @@ if [[ "${verbose}" = true ]]; then
     echo "Verbose: ${verbose}"
 fi
 
-removeCommandDir() {
+removeCacheDir() {
     [[ "${verbose}" = false ]] || echo 'Purging cache'
-    rm -rf $([[ "${verbose}" = false ]] || echo -n '--verbose') "${commandDir}"
+    rm -rf $([[ "${verbose}" = false ]] || echo -n '--verbose') "${cacheDir}"
 }
 
 if [[ "${purge}" = true ]]; then
-    removeCommandDir
+    removeCacheDir
     exit
 fi
 
-exitCodePath="${commandDir}/exit-code"
-errPath="${commandDir}/stderr"
-outPath="${commandDir}/stdout"
+exitCodePath="${cacheDir}/exit-code"
+errPath="${cacheDir}/stderr"
+outPath="${cacheDir}/stdout"
 
 cacheAge() {
     echo -n $(($(date +%s)-$(stat -c %Y "${exitCodePath}")))
@@ -116,10 +116,10 @@ if [[ -f "${exitCodePath}" ]]; then
     fi
 
     [[ "${verbose}" = false ]] || echo "Cache has expired (cache age in seconds: $(cacheAge))"
-    removeCommandDir
+    removeCacheDir
 fi
 
-mkdir -p "${commandDir}"
+mkdir -p "${cacheDir}"
 
 # Executing the ${command} must be allowed to exit with a non-zero exit code
 set +o errexit
