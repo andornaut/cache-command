@@ -1,13 +1,13 @@
 #!/bin/bash
 
-set -o errexit -o pipefail -o noclobber -o nounset
+set -o errexit -o pipefail -o nounset
 
 usage() {
     echo -n "Usage: $(basename "${0}") "
     echo '[--basedir=PATH] [--expiration=SECONDS] [--help] [--purge] [--remove] [--verbose] -- COMMAND'
 }
 
-baseDir="${XDG_RUNTIME_DIR-${HOME-/tmp}/.local/share}/cache-command"
+baseDir="${XDG_RUNTIME_DIR-/tmp/cache-command}"
 expirationInSeconds=
 purge=false
 remove=false
@@ -120,6 +120,10 @@ if [[ -f "${exitCodePath}" ]]; then
 fi
 
 mkdir -p "${cacheDir}"
+
+# Avoid race-condition by chmod'ing first
+touch ${exitCodePath} ${errPath} ${outPath}
+chmod 600 ${exitCodePath} ${errPath} ${outPath}
 
 # Executing the ${command} must be allowed to exit with a non-zero exit code
 set +o errexit
