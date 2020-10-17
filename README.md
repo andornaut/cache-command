@@ -1,6 +1,6 @@
 # cache-command
 
-Run a command and cache its results.
+Run a command and cache its results. Works on Linux and Mac OSX.
 
 `./cache-command [OPTIONS] -- COMMAND` saves the stdout, stderr, and exit code of COMMAND in a cache and
 returns the same on subsequent invocations.
@@ -34,9 +34,10 @@ Inspired by [this StackOverflow answer](https://unix.stackexchange.com/a/334568)
 
 ## Requirements
 
-- [bash](https://www.gnu.org/software/bash/) (tested with v4.4.19)
-- GNU Coreutils [tee](https://en.wikipedia.org/wiki/Tee_(command))
-- [sha256sum](https://linux.die.net/man/1/sha256sum)
+* [bash](https://www.gnu.org/software/bash/) (tested with v4.4.19)
+* GNU Coreutils:
+    * [tee](https://en.wikipedia.org/wiki/Tee_(command))
+    * [sha256sum](https://linux.die.net/man/1/sha256sum)
 
 ## Installation
 
@@ -47,15 +48,15 @@ make install
 ## Usage
 
 ```bash
-$ ./cache-command --help
-Usage: cache-command [--basedir=PATH] [--expiration=SECONDS] [--help] [--purge] [--remove] [--verbose] -- COMMAND
+$ ./cache-command -h
+Usage: cache-command [-b PATH] [-e SECONDS] [-h] [-p] [-r] [-v] -- COMMAND
 ```
 
 Option|Description
 ---|---
-`--basedir=PATH`, `-b` | Base directory for the cache (default: `${XDG_RUNTIME_DIR}/cache-command`)
-`--expiration=SECONDS`, `-e` | Cache expiration in seconds
-`--help`, `-h` | Print help text
-`--purge`, `-p` | Purge the cache for a particular command
-`--remove`, `-r` | Remove the base directory (and any caches that it contains)
-`--verbose`, `-v` | Print verbose output to aid with debugging
+`-b PATH` | Base directory for the cache (default: `${XDG_RUNTIME_DIR}/cache-command`)
+`-e SECONDS` | Cache expiration in seconds
+`-h` | Print help text
+`-p` | Purge the cache for a particular command
+`-r` | Remove the base directory (and any caches that it contains)
+`-v` | Print verbose output to aid with debugging

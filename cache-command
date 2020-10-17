@@ -2,9 +2,9 @@
 
 set -o errexit -o pipefail -o nounset
 
-usage() {
+function usage() {
     echo -n "Usage: $(basename "${0}") "
-    echo '[--basedir=PATH] [--expiration=SECONDS] [--help] [--purge] [--remove] [--verbose] -- COMMAND'
+    echo '[-b PATH] [-e SECONDS] [-h] [-p] [-r] [-v] -- COMMAND'
 }
 
 baseDir="${XDG_RUNTIME_DIR-/tmp/cache-command}"
@@ -14,44 +14,26 @@ remove=false
 verbose=false
 
 # Arg parsing from: https://stackoverflow.com/a/29754866
-OPTIONS=b:e:hprv
-LONG_OPTS=basedir:,expiration:,help,purge,remove,verbose
-! PARSED=$(getopt --options=${OPTIONS} --longoptions=${LONG_OPTS} --name "$0" -- "$@")
-if [[ ${PIPESTATUS[0]} -ne 0 ]]; then
-    usage >/dev/stderr
-    exit 1
-fi
-
-eval set -- "${PARSED}"
-while true; do
-    case "$1" in
-        -b|--basedir)
-            baseDir="$2"
-            shift 2
+while getopts 'b:e:hprv' c; do 
+    case $c in
+        b)
+            baseDir="$OPTARG"
             ;;
-        -e|--expiration)
-            expirationInSeconds="$2"
-            shift 2
+        e)
+            expirationInSeconds="$OPTARG"
             ;;
-        -h|--help)
+        h)
             usage
             exit
             ;;
-        -p|--purge)
+        p)
             purge=true
-            shift
             ;;
-        -r|--remove)
+        r)
             remove=true
-            shift
             ;;
-        -v|--verbose)
+        v)
             verbose=true
-            shift
-            ;;
-        --)
-            shift
-            break
             ;;
         *)
             usage >/dev/stderr
@@ -59,6 +41,9 @@ while true; do
             ;;
     esac
 done
+
+shift $((OPTIND-1))
+command="$@"
 
 # Remove ${baseDir} before validating the COMMAND argument, because the latter is moot in this case
 if [[ "${remove}" = true ]]; then
@@ -72,10 +57,8 @@ if [[ $# -eq 0 ]]; then
     exit 1
 fi
 
-command="$@"
-key="$(echo -n "${command}"|sha256sum)"
-
 # Strip everything after the first word, because sha256sum adds: " -"
+key="$(echo -n "${command}"|sha256sum)"
 key=${key%% *}
 cacheDir="${baseDir}/${key}"
 
@@ -89,9 +72,9 @@ if [[ "${verbose}" = true ]]; then
     echo "Verbose: ${verbose}"
 fi
 
-removeCacheDir() {
-    [[ "${verbose}" = false ]] || echo 'Purging cache'
-    rm -rf $([[ "${verbose}" = false ]] || echo -n '--verbose') "${cacheDir}"
+function removeCacheDir() {
+    [[ "${verbose}" = false ]] || echo "Purging cache ${cacheDir}"
+    rm -fr $([[ "${verbose}" = false ]] || echo -n '-v') "${cacheDir}"
 }
 
 if [[ "${purge}" = true ]]; then
@@ -103,8 +86,10 @@ exitCodePath="${cacheDir}/exit-code"
 errPath="${cacheDir}/stderr"
 outPath="${cacheDir}/stdout"
 
-cacheAge() {
-    echo -n $(($(date +%s)-$(stat -c %Y "${exitCodePath}")))
+function cacheAge() {
+    # GNU `stat -c` vs BSD `stat -f`
+    modifiedTimeMacWorkaround=$(stat -c %Y "${exitCodePath}" 2>/dev/null || stat -f%c "${exitCodePath}")
+    echo -n $(($(date +%s)-${modifiedTimeMacWorkaround}))
 }
 
 if [[ -f "${exitCodePath}" ]]; then
