@@ -1,6 +1,8 @@
 # cache-command
 
-Run a command and cache its results. Works on Linux and Mac OSX.
+Run a command and cache its results. 
+
+Tested on Linux and macOS.
 
 `./cache-command [OPTIONS] -- COMMAND` saves the stdout, stderr, and exit code of COMMAND in a cache and
 returns the same on subsequent invocations.
