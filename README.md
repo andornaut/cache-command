@@ -10,6 +10,11 @@ returns the same on subsequent invocations.
 On a cache miss, COMMAND's output is captured to the cache and then replayed, so it is **not** streamed
 live: nothing is printed until COMMAND exits. Cache hits replay the stored output immediately.
 
+Concurrent invocations of the same COMMAND are safe: each run executes independently in a private
+temporary directory, and the result is published into the cache with a single atomic rename. (If a run
+is `SIGKILL`ed while publishing, a `<cache>.lock` directory may be left behind, which blocks cache
+updates for that COMMAND until it is removed, e.g. with `-r`.)
+
 ```bash
 $ echo -e '#!/bin/bash\n echo stdout; sleep 5; echo stderr >&2; exit 1' > five-seconds
 $ chmod 755 five-seconds
