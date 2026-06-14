@@ -1,20 +1,20 @@
 #!/bin/bash
 
-set -o errexit -o pipefail -o nounset
+set -o errexit -o pipefail -o nounset -o noclobber
 
 function usage() {
     echo -n "Usage: $(basename "${0}") "
     echo '[-b PATH] [-e SECONDS] [-h] [-p] [-r] [-v] -- COMMAND'
 }
 
-baseDir="${XDG_RUNTIME_DIR-/tmp/cache-command}"
+baseDir="${XDG_RUNTIME_DIR:-/tmp}/cache-command"
 expirationInSeconds=
 purge=false
 remove=false
 verbose=false
 
 # Arg parsing from: https://stackoverflow.com/a/29754866
-while getopts 'b:e:hprv' c; do 
+while getopts 'b:e:hprv' c; do
     case $c in
         b)
             baseDir="$OPTARG"
@@ -43,7 +43,6 @@ while getopts 'b:e:hprv' c; do
 done
 
 shift $((OPTIND-1))
-command="$@"
 
 # Remove ${baseDir} before validating the COMMAND argument, because the latter is moot in this case
 if [[ "${remove}" = true ]]; then
@@ -57,15 +56,16 @@ if [[ $# -eq 0 ]]; then
     exit 1
 fi
 
-# Strip everything after the first word, because sha256sum adds: " -"
-key="$(echo -n "${command}"|sha256sum)"
+# Hash the command (NUL-delimited to preserve argument boundaries) into a cache key.
+# sha256sum appends " -", which the trailing strip removes.
+key="$(printf '%s\0' "$@" | sha256sum)"
 key=${key%% *}
 cacheDir="${baseDir}/${key}"
 
 if [[ "${verbose}" = true ]]; then
     echo "Base directory: ${baseDir}"
     echo "Cache directory: ${cacheDir}"
-    echo "Command: ${command}"
+    echo "Command: $*"
     echo "Expiration in seconds: ${expirationInSeconds}"
     echo "Purge: ${purge}"
     echo "Remove: ${remove}"
@@ -87,32 +87,42 @@ errPath="${cacheDir}/stderr"
 outPath="${cacheDir}/stdout"
 
 function cacheAge() {
-    # GNU `stat -c` vs BSD `stat -f`
-    modifiedTimeMacWorkaround=$(stat -c %Y "${exitCodePath}" 2>/dev/null || stat -f%c "${exitCodePath}")
-    echo -n $(($(date +%s)-${modifiedTimeMacWorkaround}))
+    # GNU `stat -c` vs BSD `stat -f`; both report the modification time.
+    local modifiedTime
+    modifiedTime=$(stat -c %Y "${exitCodePath}" 2>/dev/null || stat -f %m "${exitCodePath}")
+    echo -n $(($(date +%s)-${modifiedTime}))
 }
 
 if [[ -f "${exitCodePath}" ]]; then
-    if [[ -z ${expirationInSeconds} || $(cacheAge) -lt ${expirationInSeconds} ]]; then
-        [[ "${verbose}" = false ]] || echo "Using cache (cache age in seconds: $(cacheAge))"
+    age="$(cacheAge)"
+    if [[ -z ${expirationInSeconds} || ${age} -lt ${expirationInSeconds} ]]; then
+        [[ "${verbose}" = false ]] || echo "Using cache (cache age in seconds: ${age})"
         cat "${outPath}"
         cat "${errPath}" 1>&2
-        exit $(cat "${exitCodePath}")
+        exit "$(cat "${exitCodePath}")"
     fi
 
-    [[ "${verbose}" = false ]] || echo "Cache has expired (cache age in seconds: $(cacheAge))"
+    [[ "${verbose}" = false ]] || echo "Cache has expired (cache age in seconds: ${age})"
     removeCacheDir
 fi
 
+# Discard any incomplete cache (e.g. left by an interrupted run) and start fresh,
+# so a leftover output file never blocks the redirections below under noclobber.
+rm -fr "${cacheDir}"
+
+# Create cache files readable only by the owner, because the output may be sensitive.
+umask 077
 mkdir -p "${cacheDir}"
 
-# Avoid race-condition by chmod'ing first
-touch ${exitCodePath} ${errPath} ${outPath}
-chmod 600 ${exitCodePath} ${errPath} ${outPath}
-
-# Executing the ${command} must be allowed to exit with a non-zero exit code
+# Executing the COMMAND must be allowed to exit with a non-zero exit code.
 set +o errexit
-${command} 2> >(tee "${errPath}" 1>&2) > >(tee "${outPath}")
+"$@" >"${outPath}" 2>"${errPath}"
 exitCode=$?
-echo -n ${exitCode} > "${exitCodePath}"
-exit ${exitCode}
+set -o errexit
+
+cat "${outPath}"
+cat "${errPath}" 1>&2
+
+# Write the exit code last; its presence is what marks the cache as complete.
+echo -n "${exitCode}" >"${exitCodePath}"
+exit "${exitCode}"

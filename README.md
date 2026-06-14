@@ -37,9 +37,9 @@ Inspired by [this StackOverflow answer](https://unix.stackexchange.com/a/334568)
 ## Requirements
 
 * [bash](https://www.gnu.org/software/bash/) (tested with v4.4.19)
-* GNU Coreutils:
-    * [tee](https://en.wikipedia.org/wiki/Tee_(command))
+* Coreutils (GNU on Linux, BSD on macOS):
     * [sha256sum](https://linux.die.net/man/1/sha256sum)
+    * [stat](https://linux.die.net/man/1/stat)
 
 ## Installation
 
@@ -56,7 +56,7 @@ Usage: cache-command [-b PATH] [-e SECONDS] [-h] [-p] [-r] [-v] -- COMMAND
 
 Option|Description
 ---|---
-`-b PATH` | Base directory for the cache (default: `${XDG_RUNTIME_DIR}/cache-command`)
+`-b PATH` | Base directory for the cache (default: `${XDG_RUNTIME_DIR:-/tmp}/cache-command`)
 `-e SECONDS` | Cache expiration in seconds
 `-h` | Print help text
 `-p` | Purge the cache for a particular command
