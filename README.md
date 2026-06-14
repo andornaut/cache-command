@@ -7,6 +7,9 @@ Tested on Linux and macOS.
 `./cache-command [OPTIONS] -- COMMAND` saves the stdout, stderr, and exit code of COMMAND in a cache and
 returns the same on subsequent invocations.
 
+On a cache miss, COMMAND's output is captured to the cache and then replayed, so it is **not** streamed
+live: nothing is printed until COMMAND exits. Cache hits replay the stored output immediately.
+
 ```bash
 $ echo -e '#!/bin/bash\n echo stdout; sleep 5; echo stderr >&2; exit 1' > five-seconds
 $ chmod 755 five-seconds
@@ -38,6 +41,7 @@ Inspired by [this StackOverflow answer](https://unix.stackexchange.com/a/334568)
 
 * [bash](https://www.gnu.org/software/bash/) (tested with v4.4.19)
 * Coreutils (GNU on Linux, BSD on macOS):
+    * [mktemp](https://linux.die.net/man/1/mktemp)
     * [sha256sum](https://linux.die.net/man/1/sha256sum)
     * [stat](https://linux.die.net/man/1/stat)
 

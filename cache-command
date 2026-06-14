@@ -36,13 +36,23 @@ while getopts 'b:e:hprv' c; do
             verbose=true
             ;;
         *)
-            usage >/dev/stderr
+            usage >&2
             exit 1
             ;;
     esac
 done
 
 shift $((OPTIND-1))
+
+# Validate options before they are used (e.g. before -r runs `rm -rf "${baseDir}"`).
+if [[ -z "${baseDir}" || "${baseDir}" = / ]]; then
+    echo "Error: -b PATH must be a non-empty path other than /" >&2
+    exit 1
+fi
+if [[ -n "${expirationInSeconds}" && ! "${expirationInSeconds}" =~ ^[0-9]+$ ]]; then
+    echo "Error: -e SECONDS must be a non-negative integer" >&2
+    exit 1
+fi
 
 # Remove ${baseDir} before validating the COMMAND argument, because the latter is moot in this case
 if [[ "${remove}" = true ]]; then
@@ -52,7 +62,7 @@ if [[ "${remove}" = true ]]; then
 fi
 
 if [[ $# -eq 0 ]]; then
-    usage >/dev/stderr
+    usage >&2
     exit 1
 fi
 
@@ -106,23 +116,36 @@ if [[ -f "${exitCodePath}" ]]; then
     removeCacheDir
 fi
 
-# Discard any incomplete cache (e.g. left by an interrupted run) and start fresh,
-# so a leftover output file never blocks the redirections below under noclobber.
-rm -fr "${cacheDir}"
-
-# Create cache files readable only by the owner, because the output may be sensitive.
+# Build the cache in a private temporary directory. Each invocation gets its own
+# directory (via mktemp), so concurrent runs of the same COMMAND never write to each
+# other's files. Files are owner-only because the output may be sensitive. The temp
+# directory (and the publish lock, once held) is cleaned up on any exit or signal.
 umask 077
-mkdir -p "${cacheDir}"
+mkdir -p "${baseDir}"
+tmpDir="$(mktemp -d "${baseDir}/.tmp.XXXXXXXXXX")"
+lockDir=
+trap 'rm -rf "${tmpDir}" ${lockDir:+"${lockDir}"}' EXIT
+trap 'exit 1' INT TERM
 
-# Executing the COMMAND must be allowed to exit with a non-zero exit code.
+# Executing the COMMAND must be allowed to exit with a non-zero exit code. errexit
+# stays off through publishing so a publish failure can never mask the real exit code.
 set +o errexit
-"$@" >"${outPath}" 2>"${errPath}"
+"$@" >"${tmpDir}/stdout" 2>"${tmpDir}/stderr"
 exitCode=$?
-set -o errexit
 
-cat "${outPath}"
-cat "${errPath}" 1>&2
+cat "${tmpDir}/stdout"
+cat "${tmpDir}/stderr" 1>&2
 
-# Write the exit code last; its presence is what marks the cache as complete.
-echo -n "${exitCode}" >"${exitCodePath}"
+# Write the exit code last; its presence is what marks a cache as complete.
+echo -n "${exitCode}" >"${tmpDir}/exit-code"
+
+# Publish the cache. `mkdir` is atomic, so it serializes concurrent runs of the same
+# COMMAND: exactly one wins the lock and renames its directory into place (no other
+# publisher can recreate the target underneath it), and the losers simply discard
+# their temp directory. A complete cache is the same regardless of which run wins.
+if mkdir "${cacheDir}.lock" 2>/dev/null; then
+    lockDir="${cacheDir}.lock"
+    rm -rf "${cacheDir}"
+    mv "${tmpDir}" "${cacheDir}"
+fi
 exit "${exitCode}"
