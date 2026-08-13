@@ -57,7 +57,10 @@ fi
 # Remove ${baseDir} before validating the COMMAND argument, because the latter is moot in this case
 if [[ "${remove}" = true ]]; then
     [[ "${verbose}" = false ]] || echo "Removing base directory: ${baseDir}"
-    rm -rf $([[ "${verbose}" = false ]] || echo -n '--verbose') "${baseDir}"
+    # An array so that an empty flag list expands to no argument at all.
+    verboseFlag=()
+    [[ "${verbose}" = false ]] || verboseFlag=(--verbose)
+    rm -rf "${verboseFlag[@]}" "${baseDir}"
     exit
 fi
 
@@ -84,7 +87,10 @@ fi
 
 function removeCacheDir() {
     [[ "${verbose}" = false ]] || echo "Purging cache ${cacheDir}"
-    rm -fr $([[ "${verbose}" = false ]] || echo -n '-v') "${cacheDir}"
+    # An array so that an empty flag list expands to no argument at all.
+    local verboseFlag=()
+    [[ "${verbose}" = false ]] || verboseFlag=(-v)
+    rm -fr "${verboseFlag[@]}" "${cacheDir}"
 }
 
 if [[ "${purge}" = true ]]; then
@@ -100,7 +106,7 @@ function cacheAge() {
     # GNU `stat -c` vs BSD `stat -f`; both report the modification time.
     local modifiedTime
     modifiedTime=$(stat -c %Y "${exitCodePath}" 2>/dev/null || stat -f %m "${exitCodePath}")
-    echo -n $(($(date +%s)-${modifiedTime}))
+    echo -n $(($(date +%s) - modifiedTime))
 }
 
 if [[ -f "${exitCodePath}" ]]; then
