@@ -1,5 +1,8 @@
 # cache-command
 
+[![CI](https://github.com/andornaut/cache-command/actions/workflows/test.yml/badge.svg)](https://github.com/andornaut/cache-command/actions/workflows/test.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Run a command and cache its results. 
 
 Tested on Linux and macOS.
