@@ -34,8 +34,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      # The scripts here carry no extension, so the action finds them by shebang.
+      # -x follows a `source` into the file it names and -P SCRIPTDIR looks for
+      # it beside the script doing the sourcing, which shellcheck cannot resolve
+      # on its own. Set everywhere rather than only where something sources
+      # today, so a script that starts to is already covered.
+      #
+      # node_modules is skipped because a Lint job that installs dependencies
+      # would otherwise answer for shell a dependency ships.
       - name: Run ShellCheck
         uses: ludeeus/action-shellcheck@2.0.0
+        env:
+          SHELLCHECK_OPTS: -x -P SCRIPTDIR
         with:
+          ignore_paths: node_modules
           scandir: "."
