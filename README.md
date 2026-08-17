@@ -3,7 +3,7 @@
 [![CI](https://github.com/andornaut/cache-command/actions/workflows/test.yml/badge.svg)](https://github.com/andornaut/cache-command/actions/workflows/test.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Run a command and cache its results. 
+Run a command and cache its results.
 
 Tested on Linux and macOS.
 
@@ -49,16 +49,16 @@ Inspired by [this StackOverflow answer](https://unix.stackexchange.com/a/334568)
 
 * [bash](https://www.gnu.org/software/bash/) (tested with v4.4.19)
 * Coreutils (GNU on Linux, BSD on macOS):
-    * [mktemp](https://linux.die.net/man/1/mktemp)
-    * [sha256sum](https://linux.die.net/man/1/sha256sum)
-    * [stat](https://linux.die.net/man/1/stat)
+  * [mktemp](https://linux.die.net/man/1/mktemp)
+  * [sha256sum](https://linux.die.net/man/1/sha256sum)
+  * [stat](https://linux.die.net/man/1/stat)
 
 ## Installation
 
 ```bash
 make install
 ```
-    
+
 ## Usage
 
 ```bash
@@ -66,8 +66,8 @@ $ ./cache-command -h
 Usage: cache-command [-b PATH] [-e SECONDS] [-h] [-p] [-r] [-v] -- COMMAND
 ```
 
-Option|Description
----|---
+Option | Description
+--- | ---
 `-b PATH` | Base directory for the cache (default: `${XDG_RUNTIME_DIR:-/tmp}/cache-command`)
 `-e SECONDS` | Cache expiration in seconds
 `-h` | Print help text
