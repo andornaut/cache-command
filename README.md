@@ -74,3 +74,8 @@ Option | Description
 `-p` | Purge the cache for a particular command
 `-r` | Remove the base directory (and any caches that it contains)
 `-v` | Print verbose output to aid with debugging
+
+## Development
+
+Run `make check` with Docker to check shell scripts and Markdown.
+`make check-info` lists the declared checks. No test suite or build check is declared.
