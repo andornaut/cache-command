@@ -17,7 +17,7 @@ install:
 uninstall:
 	for target in $(TARGETS); do rm -f "$(DESTDIR)$(BINPREFIX)/$${target}"; done
 
-CHECK_TASKS := lint
+CHECK_TASKS := lint test
 BUILD_OUTPUTS :=
 CONTAINER_BUILD_ARGS :=
 

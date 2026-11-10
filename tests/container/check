@@ -13,12 +13,11 @@ case "$task" in
     done
     ;;
   lint)
-    shellcheck -x -P SCRIPTDIR -- cache-command tests/container/run tests/container/check
+    shellcheck -x -P SCRIPTDIR -- cache-command tests/test_cache_command tests/container/run tests/container/check
     markdownlint-cli2
     ;;
   test)
-    printf "%s\n" "No test suite declared" >&2
-    exit 2
+    exec ./tests/test_cache_command "$@"
     ;;
   build)
     printf "%s\n" "No build check declared" >&2

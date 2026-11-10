@@ -78,4 +78,6 @@ Option | Description
 ## Development
 
 Run `make check` with Docker to check shell scripts and Markdown.
-`make check-info` lists the declared checks. No test suite or build check is declared.
+`make test` checks cache behavior, including overlapping publication and concurrent calls.
+`make test TEST_ARGS=--interleaved` runs the publication check alone.
+`make check-info` lists the declared checks. No build check is declared.

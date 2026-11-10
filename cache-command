@@ -145,13 +145,13 @@ cat "${tmpDir}/stderr" 1>&2
 # Write the exit code last; its presence is what marks a cache as complete.
 echo -n "${exitCode}" >"${tmpDir}/exit-code"
 
-# Publish the cache. `mkdir` is atomic, so it serializes concurrent runs of the same
-# COMMAND: exactly one wins the lock and renames its directory into place (no other
-# publisher can recreate the target underneath it), and the losers simply discard
-# their temp directory. A complete cache is the same regardless of which run wins.
+# Serialize publication with an atomic `mkdir`. Keep a complete cache in place so
+# cache-hit readers can read every file without another publisher removing it.
 if mkdir "${cacheDir}.lock" 2>/dev/null; then
     lockDir="${cacheDir}.lock"
-    rm -rf "${cacheDir}"
-    mv "${tmpDir}" "${cacheDir}"
+    if [[ ! -f "${exitCodePath}" ]]; then
+        rm -rf "${cacheDir}"
+        mv "${tmpDir}" "${cacheDir}"
+    fi
 fi
 exit "${exitCode}"

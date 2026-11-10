@@ -1,0 +1,192 @@
+#!/bin/bash
+set -euo pipefail
+
+project=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+program=${CACHE_COMMAND_PATH:-${project}/cache-command}
+suite=$(mktemp -d)
+trap 'rm -rf -- "$suite"' EXIT
+
+fail() {
+    printf 'FAIL: %s\n' "$*" >&2
+    exit 1
+}
+
+assert_equal() {
+    local label=$1 expected=$2 actual=$3
+    [[ ${expected} == "${actual}" ]] || fail "${label}: expected '${expected}', got '${actual}'"
+}
+
+expect_rc() {
+    local expected=$1 actual
+    shift
+    if "$@" > "${suite}/out" 2> "${suite}/err"; then actual=0; else actual=$?; fi
+    assert_equal 'exit status' "${expected}" "${actual}"
+}
+
+wait_for_file() {
+    local path=$1 attempt
+    for ((attempt = 0; attempt < 1000; attempt++)); do
+        [[ ! -f ${path} ]] || return 0
+        sleep 0.01
+    done
+    fail "timed out waiting for $(basename -- "${path}")"
+}
+
+interleaved_publication() (
+    state=$(mktemp -d "${suite}/interleaved.XXXXXXXX")
+    children=()
+    cleanup_interleaving() {
+        touch "${state}/release-first" "${state}/release-second" "${state}/release-reader" "${state}/release-move"
+        for child in "${children[@]}"; do kill "${child}" 2>/dev/null || true; done
+        wait || true
+    }
+    trap cleanup_interleaving EXIT
+    mkdir "${state}/bin"
+    export CACHE_TEST_STATE=${state}
+    export CACHE_TEST_CAT
+    CACHE_TEST_CAT=$(command -v cat)
+    export CACHE_TEST_MV
+    CACHE_TEST_MV=$(command -v mv)
+    cat > "${state}/bin/cat" <<'STUB'
+#!/bin/bash
+set -euo pipefail
+if [[ ${CACHE_TEST_READER:-0} == 1 && ${1:-} == */exit-code ]]; then
+    touch "${CACHE_TEST_STATE}/reader-waiting"
+    while [[ ! -f ${CACHE_TEST_STATE}/release-reader ]]; do sleep 0.01; done
+fi
+exec "${CACHE_TEST_CAT}" "$@"
+STUB
+    cat > "${state}/bin/mv" <<'STUB'
+#!/bin/bash
+set -euo pipefail
+if [[ -f ${CACHE_TEST_STATE}/hold-later-move ]]; then
+    touch "${CACHE_TEST_STATE}/move-waiting"
+    while [[ ! -f ${CACHE_TEST_STATE}/release-move ]]; do sleep 0.01; done
+fi
+exec "${CACHE_TEST_MV}" "$@"
+STUB
+    cat > "${state}/command" <<'COMMAND'
+#!/bin/bash
+set -euo pipefail
+if mkdir "${1}/first-command" 2>/dev/null; then
+    touch "${1}/first-waiting"
+    while [[ ! -f ${1}/release-first ]]; do sleep 0.01; done
+else
+    touch "${1}/second-waiting"
+    while [[ ! -f ${1}/release-second ]]; do sleep 0.01; done
+fi
+printf out
+printf err >&2
+exit 3
+COMMAND
+    chmod +x "${state}/bin/cat" "${state}/bin/mv" "${state}/command"
+    export PATH="${state}/bin:${PATH}"
+    cache_command=(bash "${state}/command" "${state}")
+    (
+        if "${program}" -b "${state}/cache" -- "${cache_command[@]}" > "${state}/first.out" 2> "${state}/first.err"; then status=0; else status=$?; fi
+        printf '%s\n' "${status}" > "${state}/first.status"
+    ) &
+    first=$!
+    children+=("${first}")
+    wait_for_file "${state}/first-waiting"
+    (
+        if "${program}" -b "${state}/cache" -- "${cache_command[@]}" > "${state}/second.out" 2> "${state}/second.err"; then status=0; else status=$?; fi
+        printf '%s\n' "${status}" > "${state}/second.status"
+    ) &
+    second=$!
+    children+=("${second}")
+    wait_for_file "${state}/second-waiting"
+    touch "${state}/release-first"
+    wait_for_file "${state}/first.status"
+    wait "${first}"
+    children=("${second}")
+    assert_equal 'first command exit' 3 "$(cat "${state}/first.status")"
+    touch "${state}/hold-later-move"
+    (
+        if CACHE_TEST_READER=1 "${program}" -b "${state}/cache" -- "${cache_command[@]}" > "${state}/reader.out" 2> "${state}/reader.err"; then status=0; else status=$?; fi
+        printf '%s\n' "${status}" > "${state}/reader.status"
+    ) &
+    reader=$!
+    children+=("${reader}")
+    wait_for_file "${state}/reader-waiting"
+    touch "${state}/release-second"
+    for ((attempt = 0; attempt < 1000; attempt++)); do
+        if [[ -f ${state}/move-waiting || -f ${state}/second.status ]]; then break; fi
+        sleep 0.01
+    done
+    [[ -f ${state}/move-waiting || -f ${state}/second.status ]] || fail 'later publisher did not reach completion'
+    touch "${state}/release-reader"
+    wait_for_file "${state}/reader.status"
+    touch "${state}/release-move"
+    wait_for_file "${state}/second.status"
+    wait "${second}" "${reader}"
+    children=()
+    assert_equal 'cache hit remains readable during overlapping publication' 3 "$(cat "${state}/reader.status")"
+    assert_equal 'cache hit stdout' out "$(cat "${state}/reader.out")"
+    assert_equal 'cache hit stderr' err "$(cat "${state}/reader.err")"
+    assert_equal 'later command exit' 3 "$(cat "${state}/second.status")"
+    cleanup_interleaving
+    trap - EXIT
+    printf '%s\n' 'PASS: completed cache stays readable during overlapping publication'
+)
+
+options_and_hits() {
+    local base=${suite}/options-cache marker=${suite}/executions
+    # The positional parameter is expanded by the command's child shell.
+    # shellcheck disable=SC2016
+    local cache_command=(bash -c 'printf "run\n" >> "$1"; printf out; printf err >&2; exit 3' sh "${marker}")
+    expect_rc 3 "${program}" -b "${base}" -- "${cache_command[@]}"
+    assert_equal stdout out "$(cat "${suite}/out")"
+    assert_equal stderr err "$(cat "${suite}/err")"
+    expect_rc 3 "${program}" -b "${base}" -- "${cache_command[@]}"
+    assert_equal 'cached stdout' out "$(cat "${suite}/out")"
+    assert_equal 'cached stderr' err "$(cat "${suite}/err")"
+    assert_equal 'cache hit skips execution' 1 "$(wc -l < "${marker}" | tr -d ' ')"
+    expect_rc 3 "${program}" -b "${base}" -e 0 -- "${cache_command[@]}"
+    assert_equal 'expiration executes command again' 2 "$(wc -l < "${marker}" | tr -d ' ')"
+    expect_rc 0 "${program}" -b "${base}" -p -- "${cache_command[@]}"
+    assert_equal 'purge removes the cached entry' 0 "$(find "${base}" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+    expect_rc 0 "${program}" -b "${base}" -r
+    [[ ! -e ${base} ]] || fail 'remove leaves the cache base'
+    expect_rc 1 "${program}" -b '' -r
+    expect_rc 1 "${program}" -b / -r
+    expect_rc 1 "${program}" -b "${base}" -e invalid -- true
+    expect_rc 1 "${program}" -b "${base}"
+    expect_rc 1 "${program}" -q -- true
+    printf '%s\n' 'PASS: miss/hit output and exit status, expiration, purge, remove and invalid options'
+}
+
+concurrent_calls() {
+    local attempt call child directory file mode
+    local children=()
+    for ((attempt = 1; attempt <= 10; attempt++)); do
+        directory=${suite}/concurrent-${attempt}
+        children=()
+        for ((call = 1; call <= 32; call++)); do
+            (
+                if "${program}" -b "${directory}" -- bash -c 'printf out; printf err >&2; exit 3' > "${suite}/out.${call}" 2> "${suite}/err.${call}"; then status=0; else status=$?; fi
+                printf '%s\n' "${status}" > "${suite}/status.${call}"
+            ) &
+            children+=("$!")
+        done
+        for child in "${children[@]}"; do wait "${child}"; done
+        for ((call = 1; call <= 32; call++)); do
+            assert_equal "concurrent call ${call} exit" 3 "$(cat "${suite}/status.${call}")"
+            assert_equal "concurrent call ${call} stdout" out "$(cat "${suite}/out.${call}")"
+            assert_equal "concurrent call ${call} stderr" err "$(cat "${suite}/err.${call}")"
+        done
+        assert_equal 'one complete cache directory' 1 "$(find "${directory}" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')"
+        [[ -z $(find "${directory}" \( -name '.tmp.*' -o -name '*.lock' \) -print) ]] || fail 'temporary cache state remains'
+        while IFS= read -r file; do
+            mode=$(stat -c %a "${file}" 2>/dev/null || stat -f %Lp "${file}")
+            assert_equal 'cache files remain owner-only' 600 "${mode}"
+        done < <(find "${directory}" -type f)
+    done
+    printf '%s\n' 'PASS: ten batches of 32 identical concurrent calls, cache cleanup and private modes'
+}
+
+case ${1:-all} in
+    all) interleaved_publication; options_and_hits; concurrent_calls ;;
+    --interleaved) interleaved_publication ;;
+    *) printf 'Unknown test selection: %s\n' "$1" >&2; exit 2 ;;
+esac
