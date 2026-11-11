@@ -78,6 +78,6 @@ Option | Description
 ## Development
 
 Run `make check` with Docker to check shell scripts and Markdown.
-`make test` checks cache behavior, including overlapping publication and concurrent calls.
-`make test TEST_ARGS=--interleaved` runs the publication check alone.
-`make check-info` lists the declared checks. No build check is declared.
+The native command `./tests/test_cache_command` checks cache behavior, including overlapping publication and concurrent calls.
+`./tests/test_cache_command --interleaved` runs the publication check alone.
+No build check is declared.
