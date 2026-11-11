@@ -18,17 +18,17 @@ stock_image markdown_image "${MARKDOWN_IMAGE}"
 stock_image shellcheck_image "${SHELLCHECK_IMAGE}"
 stock_readonly "${shellcheck_image}" /bin/shellcheck -x -P SCRIPTDIR -- \
     cache-command tests/test_cache_command tests/container/check tests/container/stock
-stock_prepare "${markdown_image}" markdown -- sh -ec '
+STOCK_NETWORK=bridge stock_run "${markdown_image}" -- sh -ec '
     mkdir -p /scratch/markdown
     cp tests/container/package.json tests/container/package-lock.json /scratch/markdown/
-    npm ci --prefix /scratch/markdown --ignore-scripts --no-audit --no-fund --maxsockets=1 >&2
-    tar --create --file - --directory / scratch/markdown
+    npm ci --prefix /scratch/markdown --ignore-scripts --no-audit --no-fund --maxsockets=1
+    /scratch/markdown/node_modules/.bin/markdownlint-cli2
+    bash -n cache-command
+    bash -n tests/test_cache_command
+    bash -n tests/container/check
+    bash -n tests/container/stock
+    sh -n tests/container/check
+    ./tests/test_cache_command --interleaved
+    ./tests/test_cache_command
 '
-stock_run "${markdown_image}" markdown -- /scratch/markdown/node_modules/.bin/markdownlint-cli2
-stock_run "${markdown_image}" '' -- bash -n cache-command
-stock_run "${markdown_image}" '' -- bash -n tests/test_cache_command
-stock_run "${markdown_image}" '' -- bash -n tests/container/check
-stock_run "${markdown_image}" '' -- bash -n tests/container/stock
-stock_run "${markdown_image}" '' -- sh -n tests/container/check
-stock_run "${markdown_image}" '' -- ./tests/test_cache_command
 stock_finish
